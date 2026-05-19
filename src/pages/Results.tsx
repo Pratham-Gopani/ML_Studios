@@ -4,7 +4,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { saveProject } from '../services/projectStorage';
 import { generateModelZip } from '../utils/modelExport';
-import { saveAs } from 'file-saver';
+import pkg from "file-saver";
+const { saveAs } = pkg;
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6'];
 
