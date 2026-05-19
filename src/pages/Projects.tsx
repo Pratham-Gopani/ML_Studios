@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { getAllProjects, deleteProject, type StoredProject } from '../services/projectStorage';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { Trash2, FolderOpen, Download, ArrowLeft, FolderX } from 'lucide-react';
-import { saveAs } from 'file-saver';
+import pkg from "file-saver";
+const { saveAs } = pkg;
 
 export default function Projects() {
   const [projects, setProjects] = useState<StoredProject[]>([]);
