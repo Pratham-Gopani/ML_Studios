@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 import { RandomForestClassifier as RFClassifier, RandomForestRegression as RFRegression } from 'ml-random-forest';
-import kmeans from 'ml-kmeans';
+import { kmeans } from 'ml-kmeans';
 import type { ModelConfig, EvaluationResults } from '../types';
 
 // Euclidean distance
