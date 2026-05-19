@@ -17,11 +17,12 @@
     "idb": "^8.0.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.576.0",
-    "ml-kmeans": "^6.0.1",
+    "ml-kmeans": "^6.0.0",
     "ml-random-forest": "^3.0.0",
     "motion": "^12.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.15.4",
     "zustand": "^5.0.4"
   },
