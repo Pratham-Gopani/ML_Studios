@@ -1,79 +1,108 @@
 import { useState, useEffect } from 'react';
-import { Settings2, Play, Loader2, BarChart3, ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Settings2, Play, Loader2 } from 'lucide-react';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { trainModel } from '../lib/tfTraining';
+import { hyperparamSearch } from '../lib/hyperparamOptimization';
 
 export default function Tuning() {
-  const { trainSet, testSet, processedDataset, preprocessingConfig, modelConfig, datasetType, imageDataset, updateState } = useWorkflowStore();
+  const { trainSet, testSet, preprocessingConfig, modelConfig, updateState } = useWorkflowStore();
   const [isTraining, setIsTraining] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [featureColumns, setFeatureColumns] = useState<string[]>([]);
-  const [targetColumn, setTargetColumn] = useState('');
+  const [tuningStrategy, setTuningStrategy] = useState<'grid' | 'random' | 'bayesian'>('grid');
+  const [cvFolds, setCvFolds] = useState(5);
+  const [hyperparamGrid, setHyperparamGrid] = useState<any>({});
 
   useEffect(() => {
-    if (datasetType === 'tabular' && preprocessingConfig) {
-      setFeatureColumns(preprocessingConfig.selectedFeatures ?? []);
-      setTargetColumn(preprocessingConfig.targetVariable ?? '');
-    } else if (datasetType === 'tabular' && processedDataset?.columns) {
-      const cols = processedDataset.columns;
-      setFeatureColumns(cols.slice(0, -1));
-      setTargetColumn(cols[cols.length - 1]);
+    if (modelConfig) {
+      if (modelConfig.type === 'classification' || modelConfig.type === 'regression') {
+        setHyperparamGrid({
+          nEstimators: [50, 100, 200],
+          maxDepth: [5, 10, 15]
+        });
+      } else {
+        setHyperparamGrid({ numClusters: [3, 5, 7, 10] });
+      }
     }
-  }, [datasetType, preprocessingConfig, processedDataset]);
+  }, [modelConfig]);
 
   const handleTrain = async () => {
     setIsTraining(true);
     setProgress(0);
-    updateState({ error: null });
     const interval = setInterval(() => setProgress(p => Math.min(p + 3, 92)), 200);
     try {
-      let currentTrain = trainSet;
-      let currentTest = testSet;
-      if ((!currentTrain?.length || !currentTest?.length) && processedDataset?.data) {
-        const shuffled = [...processedDataset.data];
-        for (let i=shuffled.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
-        const idx = Math.floor(shuffled.length * 0.8);
-        currentTrain = shuffled.slice(0, idx);
-        currentTest = shuffled.slice(idx);
-        updateState({ trainSet: currentTrain, testSet: currentTest });
+      if (!trainSet?.length || !testSet?.length) throw new Error('Missing train/test data');
+      if (!preprocessingConfig) throw new Error('No preprocessing config');
+      const { selectedFeatures, targetVariable } = preprocessingConfig;
+      let bestParams = null;
+      if (tuningStrategy !== 'grid') {
+        bestParams = await hyperparamSearch(
+          trainSet, testSet, modelConfig, selectedFeatures, targetVariable,
+          tuningStrategy, cvFolds, hyperparamGrid
+        );
+        updateState({
+          modelConfig: { ...modelConfig, hyperparameters: { ...modelConfig.hyperparameters, ...bestParams } }
+        });
       }
-      if (!modelConfig) throw new Error('No model selected.');
-      const { metrics, model } = await trainModel(
-        currentTrain ?? [], currentTest ?? [], modelConfig,
-        featureColumns, targetColumn,
-        datasetType === 'image' ? imageDataset : null
-      );
+      const finalConfig = bestParams ? { ...modelConfig, hyperparameters: { ...modelConfig.hyperparameters, ...bestParams } } : modelConfig;
+      const result = await trainModel(trainSet, testSet, finalConfig, selectedFeatures, targetVariable);
       clearInterval(interval);
       setProgress(100);
-      updateState({ evaluationResults: metrics, trainedModel: model, currentStep: 'results' });
+      updateState({ evaluationResults: result.metrics, trainedModel: result.model, currentStep: 'results' });
     } catch (err) {
       clearInterval(interval);
       updateState({ error: err instanceof Error ? err.message : 'Training failed' });
+      alert(`Error: ${err instanceof Error ? err.message : 'Training failed'}`);
     } finally {
       setIsTraining(false);
     }
   };
 
   return (
-    <div className="space-y-8">
-      <div><h2 className="text-2xl font-black">Train & Tune</h2><p>Configure hyperparameters and start training <span className="font-semibold text-indigo-600">{modelConfig?.algorithm ?? 'model'}</span>.</p></div>
+    <div className="p-8">
+      <h1 className="text-3xl font-bold mb-8">Hyperparameter Tuning</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-8 rounded-3xl border shadow-sm"><h3 className="text-xl font-bold mb-8 flex gap-2"><Settings2 className="w-5 h-5 text-indigo-600" />Hyperparameter Configuration</h3>
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-2"><label className="text-sm font-bold">Tuning Strategy</label><div className="flex gap-2">{['Grid Search', 'Random Search', 'Bayesian'].map((s,i)=><button key={s} className={`px-4 py-2 rounded-xl text-xs font-bold border ${i===0?'bg-indigo-600 text-white border-indigo-600':'bg-white text-slate-600 border-slate-200'}`}>{s}</button>)}</div></div><div className="space-y-2"><label className="text-sm font-bold">Cross-Validation Folds</label><input type="range" min="2" max="10" defaultValue="5" className="w-full accent-indigo-600" /></div></div>
-              {modelConfig?.type === 'clustering' && (
-                <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100"><h4 className="text-xs font-bold text-indigo-800 uppercase mb-4">Clustering Parameters</h4>
-                  {modelConfig.algorithm === 'K-Means' && (<div className="space-y-2"><label className="text-xs font-bold">Number of Clusters (K)</label><input type="number" min="2" max="10" defaultValue={modelConfig.hyperparameters?.numClusters ?? 3} className="w-full px-3 py-2 bg-white border rounded-lg text-sm" onChange={e=>updateState({ modelConfig: { ...modelConfig, hyperparameters: { ...modelConfig.hyperparameters, numClusters: parseInt(e.target.value) } } })} /></div>)}
-                </div>
-              )}
-              <div className="p-6 bg-slate-50 rounded-2xl border"><h4 className="text-xs font-bold text-slate-400 uppercase">Model Parameters</h4><div className="grid grid-cols-2 gap-4 mt-4"><div><label className="text-xs font-bold">Learning Rate</label><input type="text" defaultValue="0.01" className="w-full px-3 py-2 bg-white border rounded-lg text-xs font-mono" /></div><div><label className="text-xs font-bold">Max Depth</label><input type="text" defaultValue="5" className="w-full px-3 py-2 bg-white border rounded-lg text-xs font-mono" /></div></div></div>
+          <div className="bg-white rounded-2xl shadow-sm p-6">
+            <h2 className="text-xl font-bold mb-4 flex gap-2"><Settings2 /> Tuning Strategy</h2>
+            <div className="flex gap-4 mb-4">
+              {(['grid', 'random', 'bayesian'] as const).map(s => (
+                <label key={s} className="flex items-center gap-2">
+                  <input type="radio" name="strategy" value={s} checked={tuningStrategy === s} onChange={() => setTuningStrategy(s)} />
+                  {s.charAt(0).toUpperCase() + s.slice(1)} Search
+                </label>
+              ))}
+            </div>
+            <div>
+              <label>Cross-Validation Folds: {cvFolds}</label>
+              <input type="range" min={2} max={10} value={cvFolds} onChange={e => setCvFolds(parseInt(e.target.value))} className="w-full" />
             </div>
           </div>
-          <div className="bg-white p-8 rounded-3xl border"><h3 className="text-lg font-bold mb-6 flex gap-2"><BarChart3 className="w-5 h-5 text-indigo-600" />Evaluation Metrics</h3><div className="grid grid-cols-2 md:grid-cols-3 gap-4">{['Accuracy', 'F1-Score', 'Precision', 'Recall', 'ROC-AUC', 'RMSE'].map(m=><div key={m} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border"><div className="w-4 h-4 rounded-full border-2 border-indigo-600 flex items-center justify-center"><div className="w-1.5 h-1.5 bg-indigo-600 rounded-full" /></div><span className="text-xs font-bold text-slate-600">{m}</span></div>)}</div></div>
+          <div className="bg-white rounded-2xl shadow-sm p-6">
+            <h2 className="text-xl font-bold mb-4">Hyperparameter Grid</h2>
+            <pre className="bg-gray-100 p-4 rounded-xl text-sm">{JSON.stringify(hyperparamGrid, null, 2)}</pre>
+          </div>
         </div>
-        <div className="space-y-6"><div className="bg-white p-8 rounded-3xl border shadow-sm sticky top-8"><div className="text-center mb-8"><div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${isTraining ? 'bg-indigo-50' : 'bg-slate-50'}`}>{isTraining ? <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" /> : <Play className="w-10 h-10 text-slate-300" />}</div><h4 className="font-bold">{isTraining ? 'Training…' : 'Ready to Train'}</h4><p className="text-xs text-slate-500">{modelConfig?.algorithm ?? 'No model selected'}</p></div>{isTraining && <div className="mb-8 space-y-2"><div className="flex justify-between text-[10px] font-bold"><span className="text-indigo-600">Progress</span><span>{progress}%</span></div><div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><motion.div initial={{width:0}} animate={{width:`${progress}%`}} className="h-full bg-indigo-600" /></div></div>}<button onClick={handleTrain} disabled={isTraining || !modelConfig} className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 disabled:opacity-50">{isTraining ? 'Training…' : <><span>Start Training</span><ArrowRight className="w-5 h-5" /></>}</button></div></div>
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-8">
+            <h2 className="text-xl font-bold mb-4">Training</h2>
+            {isTraining ? (
+              <div className="space-y-4">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto" />
+                <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${progress}%` }} /></div>
+                <p className="text-center text-sm">{progress}%</p>
+              </div>
+            ) : (
+              <button onClick={handleTrain} className="w-full flex justify-center gap-2 bg-indigo-600 text-white p-3 rounded-xl font-bold">
+                <Play className="w-4 h-4" /> Start Training
+              </button>
+            )}
+            <div className="mt-4 text-sm text-gray-500">
+              <p>Model: {modelConfig?.algorithm}</p>
+              <p>Train samples: {trainSet?.length || 0}</p>
+              <p>Test samples: {testSet?.length || 0}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
