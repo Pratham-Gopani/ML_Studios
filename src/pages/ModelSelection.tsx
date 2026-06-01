@@ -1,35 +1,93 @@
 import { useState } from 'react';
-import { Brain, GitBranch, Layers, Sigma, Grid, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Cpu, Brain, TrendingUp, CircleDot, ArrowRight } from 'lucide-react';
 import { useWorkflowStore } from '../store/useWorkflowStore';
-import type { ModelConfig } from '../types';
 
-const GROUPS = [
-  { type: 'classification' as const, label: 'Classification', icon: Brain, color: 'indigo', algorithms: ['Logistic Regression', 'Random Forest Classifier', 'Neural Network Classifier', 'Support Vector Machine', 'Gradient Boosting Classifier'] },
-  { type: 'regression' as const, label: 'Regression', icon: Sigma, color: 'violet', algorithms: ['Linear Regression', 'Ridge Regression', 'Lasso Regression', 'Random Forest Regressor', 'Neural Network Regressor'] },
-  { type: 'clustering' as const, label: 'Clustering', icon: Grid, color: 'emerald', algorithms: ['K-Means', 'DBSCAN', 'Hierarchical Clustering'] },
-];
+const models = {
+  classification: [
+    { name: 'Logistic Regression', icon: TrendingUp },
+    { name: 'Random Forest Classifier', icon: Brain }
+  ],
+  regression: [
+    { name: 'Random Forest Regressor', icon: Brain }
+  ],
+  clustering: [
+    { name: 'K-Means', icon: CircleDot }
+  ]
+};
 
 export default function ModelSelection() {
-  const { datasetType, updateState } = useWorkflowStore();
-  const [selectedType, setSelectedType] = useState<ModelConfig['type']>('classification');
-  const [selectedAlgo, setSelectedAlgo] = useState('');
-  const group = GROUPS.find(g => g.type === selectedType)!;
+  const navigate = useNavigate();
+  const { updateState, modelConfig } = useWorkflowStore();
+  const [selectedType, setSelectedType] = useState<'classification' | 'regression' | 'clustering'>(
+    modelConfig?.type || 'classification'
+  );
+  const [selectedAlgo, setSelectedAlgo] = useState<string>(modelConfig?.algorithm || '');
 
-  const handleContinue = () => {
-    if (!selectedAlgo) { alert('Select an algorithm.'); return; }
-    updateState({ modelConfig: { type: selectedType, algorithm: selectedAlgo, hyperparameters: selectedType === 'clustering' ? { numClusters: 3 } : {} }, currentStep: 'tuning' });
+  const handleNext = () => {
+    if (!selectedAlgo) return;
+    updateState({
+      modelConfig: {
+        type: selectedType,
+        algorithm: selectedAlgo,
+        hyperparameters: getDefaultParams(selectedType, selectedAlgo)
+      },
+      currentStep: 'tuning'
+    });
+    navigate('/tuning');
   };
 
-  if (datasetType === 'image') {
-    return (<div className="space-y-8"><div><h2 className="text-2xl font-black">Select Model</h2><p>Image dataset – CNN will be used automatically.</p></div><div className="bg-white p-8 rounded-3xl border border-indigo-200"><div className="flex items-center gap-3 mb-4"><Layers className="w-8 h-8 text-indigo-600" /><div><h3 className="font-bold">Convolutional Neural Network</h3><p className="text-sm text-slate-500">2 Conv layers + Dense + Dropout</p></div></div><div className="grid grid-cols-2 gap-2 text-sm">{['Conv2D (32)', 'MaxPooling2D', 'Conv2D (64)', 'Dense (128)', 'Dropout 50%', 'Softmax'].map(l=><div key={l} className="bg-indigo-50 px-3 py-2 rounded-lg text-indigo-700 font-medium text-xs">{l}</div>)}</div></div><button onClick={()=>updateState({ modelConfig: { type:'classification', algorithm:'CNN', hyperparameters:{} }, currentStep:'tuning' })} className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold">Use CNN<ArrowRight className="w-5 h-5" /></button></div>);
-  }
+  const getDefaultParams = (type: string, algo: string) => {
+    if (type === 'classification') return { nEstimators: 100, maxDepth: 10 };
+    if (type === 'regression') return { nEstimators: 100, maxDepth: 10 };
+    return { numClusters: 3 };
+  };
 
   return (
-    <div className="space-y-8">
-      <div><h2 className="text-2xl font-black">Select Model</h2><p>Choose problem type and algorithm.</p></div>
-      <div className="flex flex-wrap gap-3">{GROUPS.map(g => (<button key={g.type} onClick={()=>{ setSelectedType(g.type); setSelectedAlgo(''); }} className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all ${selectedType===g.type ? `bg-${g.color}-600 text-white shadow-lg` : 'bg-white border border-slate-200 text-slate-600'}`}><g.icon className="w-4 h-4" />{g.label}</button>))}</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{group.algorithms.map(algo => (<button key={algo} onClick={()=>setSelectedAlgo(algo)} className={`text-left p-5 rounded-2xl border-2 transition-all ${selectedAlgo===algo ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}><GitBranch className={`w-5 h-5 mb-3 ${selectedAlgo===algo ? 'text-indigo-600' : 'text-slate-300'}`} /><p className="font-bold text-sm">{algo}</p></button>))}</div>
-      <button onClick={handleContinue} disabled={!selectedAlgo} className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold disabled:opacity-40">Configure & Train<ArrowRight className="w-5 h-5" /></button>
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-8">Select Model</h1>
+      <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
+        <h2 className="text-xl font-bold mb-4">Problem Type</h2>
+        <div className="flex gap-4">
+          {(['classification', 'regression', 'clustering'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => { setSelectedType(type); setSelectedAlgo(''); }}
+              className={`px-6 py-2 rounded-xl font-medium transition ${
+                selectedType === type ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {models[selectedType].map(model => {
+          const Icon = model.icon;
+          return (
+            <button
+              key={model.name}
+              onClick={() => setSelectedAlgo(model.name)}
+              className={`p-6 rounded-2xl border-2 transition text-left ${
+                selectedAlgo === model.name ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'
+              }`}
+            >
+              <Icon className="w-8 h-8 text-indigo-600 mb-3" />
+              <h3 className="font-bold text-lg">{model.name}</h3>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-8 flex justify-end">
+        <button
+          onClick={handleNext}
+          disabled={!selectedAlgo}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50"
+        >
+          Next: Hyperparameter Tuning <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
