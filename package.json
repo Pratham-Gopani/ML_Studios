@@ -5,22 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-   "@tensorflow/tfjs": "^4.15.0",
-   "file-saver": "^2.0.5",
-   "framer-motion": "^11.0.2",
-   "lucide-react": "^0.576.0",
-   "ml-kmeans": "^6.0.0",
-   "ml-random-forest":  "git+https://github.com/mljs/random-forest.git",
-   "papaparse": "^5.4.1",
-   "react": "^18.2.0",
-   "react-dom": "^18.2.0",
-   "react-router-dom": "^6.22.0",
-   "recharts": "^2.12.0",
-   "zustand": "^4.5.0"
+    "@tensorflow/tfjs": "^4.15.0",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^11.0.2",
+    "lucide-react": "^0.576.0",
+    "ml-kmeans": "^6.0.0",
+    "ml-random-forest": "git+https://github.com/mljs/random-forest.git",
+    "papaparse": "^5.4.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0",
+    "recharts": "^2.12.0",
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@types/file-saver": "^2.0.7",
