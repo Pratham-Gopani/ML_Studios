@@ -14,7 +14,7 @@
    "framer-motion": "^11.0.2",
    "lucide-react": "^0.576.0",
    "ml-kmeans": "^6.0.0",
-   "ml-random-forest": "^3.0.0",
+   "ml-random-forest":  "git+https://github.com/mljs/random-forest.git",
    "papaparse": "^5.4.1",
    "react": "^18.2.0",
    "react-dom": "^18.2.0",
