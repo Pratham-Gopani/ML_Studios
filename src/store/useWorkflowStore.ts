@@ -1,49 +1,74 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
-export type Step = 'overview' | 'import' | 'preprocessing' | 'model-selection' | 'tuning' | 'results' | 'insights' | 'projects';
-
-export interface WorkflowState {
-  currentStep: Step;
-  rawDataset: any;
-  processedDataset: any;
-  datasetType: 'tabular' | 'image';
-  imageDataset: any;
-  trainSet: any[];
-  testSet: any[];
-  preprocessingConfig: any;
-  modelConfig: any;
-  evaluationResults: any;
-  trainedModel: any;
-  featureEngineeringGuidance: string;
-  error: string | null;
-  updateState: (updates: Partial<WorkflowState>) => void;
-  setTrainedModel: (model: any) => void;
-  setDatasetType: (type: 'tabular' | 'image') => void;
-  setImageDataset: (data: any) => void;
+export interface PreprocessingConfig {
+  selectedFeatures: string[];
+  targetVariable: string;
+  splitRatio: number;
+  missingStrategy: 'drop' | 'impute';
+  imputeMethod: 'mean' | 'median' | 'mode' | 'constant';
+  encodingMethod: 'label' | 'onehot';
+  scalingMethod: 'none' | 'minmax' | 'standard';
+  outlierMethod: 'none' | 'iqr' | 'cap';
 }
 
-export const useWorkflowStore = create<WorkflowState>()(
-  persist(
-    (set) => ({
-      currentStep: 'overview',
-      rawDataset: null,
-      processedDataset: null,
-      datasetType: 'tabular',
-      imageDataset: null,
-      trainSet: [],
-      testSet: [],
-      preprocessingConfig: null,
-      modelConfig: null,
-      evaluationResults: null,
-      trainedModel: null,
-      featureEngineeringGuidance: '',
-      error: null,
-      updateState: (updates) => set((state) => ({ ...state, ...updates })),
-      setTrainedModel: (model) => set({ trainedModel: model }),
-      setDatasetType: (type) => set({ datasetType: type }),
-      setImageDataset: (data) => set({ imageDataset: data }),
-    }),
-    { name: 'ml-workflow-storage' }
-  )
-);
+export interface ModelConfig {
+  type: 'classification' | 'regression' | 'clustering';
+  algorithm: string;
+  hyperparameters: Record<string, any>;
+}
+
+export interface EvaluationResults {
+  accuracy?: number;
+  f1Score?: number;
+  mse?: number;
+  r2?: number;
+  silhouetteScore?: number;
+  trainingTime: number;
+}
+
+interface WorkflowState {
+  rawDataset: any | null;
+  processedDataset: any | null;
+  datasetType: 'tabular' | 'image' | null;
+  imageDataset: any | null;
+  trainSet: Record<string, any>[] | null;
+  testSet: Record<string, any>[] | null;
+  preprocessingConfig: PreprocessingConfig | null;
+  modelConfig: ModelConfig | null;
+  evaluationResults: EvaluationResults | null;
+  trainedModel: any | null;
+  currentStep: 'data-import' | 'preprocessing' | 'analyze' | 'model-selection' | 'tuning' | 'results' | 'insights' | 'settings';
+  error: string | null;
+  updateState: (updates: Partial<WorkflowState>) => void;
+  reset: () => void;
+}
+
+export const useWorkflowStore = create<WorkflowState>((set) => ({
+  rawDataset: null,
+  processedDataset: null,
+  datasetType: null,
+  imageDataset: null,
+  trainSet: null,
+  testSet: null,
+  preprocessingConfig: null,
+  modelConfig: null,
+  evaluationResults: null,
+  trainedModel: null,
+  currentStep: 'data-import',
+  error: null,
+  updateState: (updates) => set((state) => ({ ...state, ...updates })),
+  reset: () => set({
+    rawDataset: null,
+    processedDataset: null,
+    datasetType: null,
+    imageDataset: null,
+    trainSet: null,
+    testSet: null,
+    preprocessingConfig: null,
+    modelConfig: null,
+    evaluationResults: null,
+    trainedModel: null,
+    currentStep: 'data-import',
+    error: null
+  })
+}));
