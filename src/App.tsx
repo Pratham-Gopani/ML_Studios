@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
-import DataImport from './pages/DataImport';
+import DatasetImport from './pages/DatasetImport';
 import Preprocessing from './pages/Preprocessing';
 import AnalyzeData from './pages/AnalyzeData';
 import ModelSelection from './pages/ModelSelection';
@@ -15,7 +15,7 @@ function App() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<DataImport />} />
+          <Route path="/" element={<DatasetImport />} />
           <Route path="/preprocessing" element={<Preprocessing />} />
           <Route path="/analyze" element={<AnalyzeData />} />
           <Route path="/model-selection" element={<ModelSelection />} />
