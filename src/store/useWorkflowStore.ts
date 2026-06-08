@@ -1,49 +1,111 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { Step, WorkflowState } from '../types';
+import { indexedDBStore } from './indexedDBStorage';
 
-export type Step = 'overview' | 'import' | 'preprocessing' | 'model-selection' | 'tuning' | 'results' | 'insights' | 'projects';
-
-export interface WorkflowState {
-  currentStep: Step;
-  rawDataset: any;
-  processedDataset: any;
-  datasetType: 'tabular' | 'image';
-  imageDataset: any;
-  trainSet: any[];
-  testSet: any[];
-  preprocessingConfig: any;
-  modelConfig: any;
-  evaluationResults: any;
-  trainedModel: any;
-  featureEngineeringGuidance: string;
-  error: string | null;
+interface WorkflowStore extends WorkflowState {
   updateState: (updates: Partial<WorkflowState>) => void;
-  setTrainedModel: (model: any) => void;
-  setDatasetType: (type: 'tabular' | 'image') => void;
-  setImageDataset: (data: any) => void;
+  resetState: () => void;
+  canNavigateTo: (step: Step) => boolean;
 }
 
-export const useWorkflowStore = create<WorkflowState>()(
+const INITIAL_STATE: WorkflowState = {
+  currentStep: 'overview',
+  completedSteps: ['overview'],
+  rawDataset: null,
+  processedDataset: null,
+  trainSet: null,
+  testSet: null,
+  preprocessingConfig: null,
+  modelConfig: null,
+  evaluationResults: null,
+  history: [],
+  aiGuidance: {
+    overview: '',
+    import: '',
+    preprocess: '',
+    analyze: '',
+    model: '',
+    tune: '',
+    results: '',
+    insights: ''
+  },
+  featureEngineeringGuidance: '',
+  goal: '',
+  error: null
+};
+
+export const useWorkflowStore = create<WorkflowStore>()(
   persist(
-    (set) => ({
-      currentStep: 'overview',
-      rawDataset: null,
-      processedDataset: null,
-      datasetType: 'tabular',
-      imageDataset: null,
-      trainSet: [],
-      testSet: [],
-      preprocessingConfig: null,
-      modelConfig: null,
-      evaluationResults: null,
-      trainedModel: null,
-      featureEngineeringGuidance: '',
-      error: null,
-      updateState: (updates) => set((state) => ({ ...state, ...updates })),
-      setTrainedModel: (model) => set({ trainedModel: model }),
-      setDatasetType: (type) => set({ datasetType: type }),
-      setImageDataset: (data) => set({ imageDataset: data }),
+    (set, get) => ({
+      ...INITIAL_STATE,
+
+      updateState: (updates) => {
+        set((state) => {
+          const newState = { ...state, ...updates };
+
+          if (updates.rawDataset && state.rawDataset && updates.rawDataset.id !== state.rawDataset.id) {
+            newState.processedDataset = null;
+            newState.trainSet = null;
+            newState.testSet = null;
+            newState.preprocessingConfig = null;
+            newState.modelConfig = null;
+            newState.evaluationResults = null;
+            newState.completedSteps = ['overview', 'import'];
+          }
+
+          if (updates.goal !== undefined && updates.goal !== state.goal) {
+            newState.aiGuidance = INITIAL_STATE.aiGuidance;
+          }
+
+          if (updates.currentStep && !state.completedSteps.includes(updates.currentStep)) {
+            newState.completedSteps = [...state.completedSteps, updates.currentStep];
+          }
+          return newState;
+        });
+      },
+
+      resetState: () => set(INITIAL_STATE),
+
+      canNavigateTo: (step) => {
+        const state = get();
+        const stepOrder: Step[] = ['overview', 'import', 'preprocess', 'analyze', 'model', 'tune', 'results', 'insights'];
+        const targetIndex = stepOrder.indexOf(step);
+        const currentIndex = stepOrder.indexOf(state.currentStep);
+        if (targetIndex <= currentIndex) return true;
+        if (state.completedSteps.includes(step)) return true;
+
+        switch (step) {
+          case 'overview': return true;
+          case 'import': return true;
+          case 'preprocess': return !!state.rawDataset;
+          case 'analyze': return !!state.processedDataset;
+          case 'model': return !!state.processedDataset;
+          case 'tune': return !!state.modelConfig && !!state.trainSet;
+          case 'results': return !!state.evaluationResults;
+          case 'insights': return !!state.evaluationResults;
+          default: return false;
+        }
+      }
     }),
-    { name: 'ml-workflow-storage' }
+    {
+      name: 'ml-workflow-storage',
+      storage: createJSONStorage(() => indexedDBStore),
+      partialize: (state) => ({
+        currentStep: state.currentStep,
+        completedSteps: state.completedSteps,
+        rawDataset: state.rawDataset,
+        processedDataset: state.processedDataset,
+        trainSet: state.trainSet,
+        testSet: state.testSet,
+        preprocessingConfig: state.preprocessingConfig,
+        modelConfig: state.modelConfig,
+        evaluationResults: state.evaluationResults,
+        history: state.history,
+        aiGuidance: state.aiGuidance,
+        featureEngineeringGuidance: state.featureEngineeringGuidance,
+        goal: state.goal
+      })
+    }
   )
 );
