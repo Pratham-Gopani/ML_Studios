@@ -816,9 +816,7 @@ export async function trainAndEvaluate(
         trainLabels.dispose();
         testLabels.dispose();
 
-        if (modelToTrain) {
-          try { modelToTrain.dispose(); } catch (e) {}
-        }
+        model = modelToTrain;
         break; // Success!
 
       } catch (err: any) {
@@ -1080,48 +1078,55 @@ export async function trainAndEvaluate(
   }
 
   // Persists the trained model weights/topology inside the response payload in-memory
-  try {
-    let modelArtifacts: any = null;
-    await model.save({
-      save: async (artifacts: any) => {
-        modelArtifacts = artifacts;
-        return {
-          modelArtifactsInfo: {
-            dateSaved: new Date(),
-            modelTopologyType: 'JSON'
-          }
-        };
-      }
-    });
-
-    if (modelArtifacts) {
-      let weigthsBase64 = '';
-      if (modelArtifacts.weightData) {
-        if (typeof Buffer !== 'undefined') {
-          weigthsBase64 = Buffer.from(modelArtifacts.weightData).toString('base64');
-        } else {
-          const bytes = new Uint8Array(modelArtifacts.weightData);
-          const chunks: string[] = [];
-          const chunkSize = 16384;
-          for (let i = 0; i < bytes.length; i += chunkSize) {
-            const arr = Array.from(bytes.subarray(i, i + chunkSize));
-            chunks.push(String.fromCharCode.apply(null, arr));
-          }
-          weigthsBase64 = btoa(chunks.join(''));
+  if (model) {
+    try {
+      let modelArtifacts: any = null;
+      await model.save({
+        save: async (artifacts: any) => {
+          modelArtifacts = artifacts;
+          return {
+            modelArtifactsInfo: {
+              dateSaved: new Date(),
+              modelTopologyType: 'JSON'
+            }
+          };
         }
-      }
+      });
 
-      finalMetrics.modelArtifacts = {
-        modelTopology: modelArtifacts.modelTopology,
-        weightSpecs: modelArtifacts.weightSpecs,
-        weightDataBase64: weigthsBase64
-      };
-      console.log('Model successfully saved in-memory as serialized Base64 payload');
+      if (modelArtifacts) {
+        let weigthsBase64 = '';
+        if (modelArtifacts.weightData) {
+          if (typeof Buffer !== 'undefined') {
+            weigthsBase64 = Buffer.from(modelArtifacts.weightData).toString('base64');
+          } else {
+            const bytes = new Uint8Array(modelArtifacts.weightData);
+            const chunks: string[] = [];
+            const chunkSize = 16384;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              const arr = Array.from(bytes.subarray(i, i + chunkSize));
+              chunks.push(String.fromCharCode.apply(null, arr));
+            }
+            weigthsBase64 = btoa(chunks.join(''));
+          }
+        }
+
+        finalMetrics.modelArtifacts = {
+          modelTopology: modelArtifacts.modelTopology,
+          weightSpecs: modelArtifacts.weightSpecs,
+          weightDataBase64: weigthsBase64
+        };
+        console.log('Model successfully saved in-memory as serialized Base64 payload');
+      }
+    } catch (err) {
+      console.error('Failed to serialize/save model artifacts in-memory:', err);
     }
-  } catch (err) {
-    console.error('Failed to serialize/save model artifacts in-memory:', err);
+
+    try {
+      model.dispose();
+    } catch (e) {
+      console.error('Error disposing model:', e);
+    }
   }
 
-  model.dispose();
   return finalMetrics;
 }
